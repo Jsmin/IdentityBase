@@ -1,17 +1,15 @@
-﻿// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
-// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
-
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using IdentityBase.Public.EntityFramework.DbContexts;
-using IdentityBase.Public.EntityFramework.Options;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
 namespace IdentityBase.Public.EntityFramework.Services
 {
+    using System;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using IdentityBase.Public.EntityFramework.Entities;
+    using IdentityBase.Public.EntityFramework.Interfaces;
+    using IdentityBase.Public.EntityFramework.Configuration;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
+
     internal class TokenCleanupService
     {
         private readonly ILogger<TokenCleanupService> _logger;
@@ -31,99 +29,122 @@ namespace IdentityBase.Public.EntityFramework.Services
 
             if (options.TokenCleanupInterval < 1)
             {
-                throw new ArgumentException("interval must be more than 1 second");
+                throw new ArgumentException(
+                    "interval must be more than 1 second");
             }
 
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this._logger = logger ?? throw
+                new ArgumentNullException(nameof(logger));
 
-            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(
-                nameof(serviceProvider));
+            this._serviceProvider = serviceProvider ?? throw
+                new ArgumentNullException(nameof(serviceProvider));
 
-            _interval = TimeSpan.FromSeconds(options.TokenCleanupInterval);
+            this._interval = TimeSpan.FromSeconds(options.TokenCleanupInterval);
         }
 
         public void Start()
         {
-            if (_source != null)
+            Start(CancellationToken.None);
+        }
+
+        public void Start(CancellationToken cancellationToken)
+        {
+            if (this._source != null)
             {
-                throw new InvalidOperationException("Already started. Call Stop first.");
+                throw new InvalidOperationException(
+                    "Already started. Call Stop first.");
             }
 
-            _logger.LogDebug("Starting token cleanup");
+            this._logger.LogDebug("Starting token cleanup");
 
-            _source = new CancellationTokenSource();
-            Task.Factory.StartNew(() => Start(_source.Token));
+            this._source = CancellationTokenSource
+                .CreateLinkedTokenSource(cancellationToken);
+
+            Task.Factory.StartNew(() => StartInternal(this._source.Token));
         }
 
         public void Stop()
         {
-            if (_source == null)
+            if (this._source == null)
             {
-                throw new InvalidOperationException("Not started. Call Start first.");
+                throw new InvalidOperationException(
+                        "Not started. Call Start first.");
             }
 
-            _logger.LogDebug("Stopping token cleanup");
+            this._logger.LogDebug("Stopping token cleanup");
 
-            _source.Cancel();
-            _source = null;
+            this._source.Cancel();
+            this._source = null;
         }
 
-        private async Task Start(CancellationToken cancellationToken)
+        private async Task StartInternal(CancellationToken cancellationToken)
         {
             while (true)
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    _logger.LogDebug("CancellationRequested");
+                    this._logger.LogDebug("CancellationRequested. Exiting.");
                     break;
                 }
 
                 try
                 {
-                    await Task.Delay(_interval, cancellationToken);
+                    await Task.Delay(this._interval, cancellationToken);
                 }
-                catch
+                catch (TaskCanceledException)
                 {
-                    _logger.LogDebug("Task.Delay exception. exiting.");
+                    this._logger.LogDebug("TaskCanceledException. Exiting.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    this._logger.LogError(
+                        "Task.Delay exception: {0}. Exiting.",
+                        ex.Message);
                     break;
                 }
 
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    _logger.LogDebug("CancellationRequested");
+                    this._logger.LogDebug("CancellationRequested. Exiting.");
                     break;
                 }
 
-                TryClearTokens();
+                this.TryClearTokens();
             }
         }
 
-        private void TryClearTokens()
+        public void TryClearTokens()
         {
             try
             {
-                ClearTokens(); 
+                this.ClearTokens();
             }
             catch (Exception ex)
             {
-                _logger.LogError("Exception cleaning tokens {exception}", ex.Message);
+                this._logger.LogError(
+                    "Exception clearing tokens: {exception}",
+                    ex.Message);
             }
         }
 
-        private void ClearTokens()
+        public void ClearTokens()
         {
-            _logger.LogTrace("Querying for tokens to clear");
+            this._logger.LogTrace("Querying for tokens to clear");
 
-            using (var serviceScope = _serviceProvider
+            using (IServiceScope serviceScope = this._serviceProvider
                 .GetRequiredService<IServiceScopeFactory>().CreateScope())
             {
-                using (var context = serviceScope.ServiceProvider
-                    .GetService<PersistedGrantDbContext>())
+                using (IPersistedGrantDbContext context = serviceScope
+                    .ServiceProvider.GetService<IPersistedGrantDbContext>())
                 {
-                    var expired = context.PersistedGrants
-                        .Where(x => x.Expiration < DateTimeOffset.UtcNow).ToArray();
+                    PersistedGrant[] expired = context.PersistedGrants
+                        .Where(x => x.Expiration < DateTimeOffset.UtcNow)
+                        .ToArray();
 
-                    _logger.LogDebug("Clearing {tokenCount} tokens", expired.Length);
+                    this._logger.LogInformation(
+                        "Clearing {tokenCount} tokens",
+                        expired.Length);
 
                     if (expired.Length > 0)
                     {

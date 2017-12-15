@@ -1,33 +1,45 @@
-﻿using Autofac;
-using Autofac.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace IdentityBase.Public.EntityFramework
 {
-    public class InMemoryModule : Autofac.Module
-    {
-        /// <summary>
-        /// Loads dependencies 
-        /// </summary>
-        /// <param name="builder">The builder through which components can be registered.</param>
-        protected override void Load(ContainerBuilder builder)
-        {
-            var services = new ServiceCollection();
-            var config = Current.Configuration;
+    using IdentityBase.Public.EntityFramework.Configuration;
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.EntityFrameworkCore;
+    using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.DependencyInjection;
+    using ServiceBase.Modules;
 
+    public class InMemoryModule : IModule
+    {
+        public void ConfigureServices(
+            IServiceCollection services,
+            IConfiguration configuration)
+        {
             services.AddEntityFrameworkStores((options) =>
             {
                 options.DbContextOptions = (dbBuilder) =>
                 {
-                    dbBuilder.UseInMemoryDatabase();
+                    dbBuilder
+                        .UseInMemoryDatabase("Put_value_from_config_here");
                 };
 
-                config.GetSection("EntityFramework").Bind(options);
+                configuration.GetSection("EntityFramework").Bind(options);
             });
+        }
 
-            builder.Populate(services);
+        public void Configure(IApplicationBuilder app)
+        {
+            using (IServiceScope serviceScope = app.ApplicationServices
+                .GetRequiredService<IServiceScopeFactory>().CreateScope())
+            {
+                EntityFrameworkOptions options = serviceScope.ServiceProvider
+                    .GetService<EntityFrameworkOptions>();
+
+                if (options != null)
+                {
+                    // Disable migration since InMemoryDatabase does not
+                    // require one 
+                    options.MigrateDatabase = false;
+                }
+            }            
         }
     }
 }

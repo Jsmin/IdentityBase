@@ -1,116 +1,76 @@
-﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-//using ServiceBase.Notification.Email;
-using System;
-using System.IdentityModel.Tokens.Jwt;
-
 namespace AspNetCoreWeb
 {
+    using System;
+    using System.IdentityModel.Tokens.Jwt;
+    using IdentityModel;
+    using Microsoft.AspNetCore.Authentication.Cookies;
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.IdentityModel.Tokens;
+
     public class Startup
     {
-        private readonly IHostingEnvironment _environment;
-        private readonly IConfigurationRoot _configuration;
-
-        public Startup(IHostingEnvironment env)
+        public Startup()
         {
-            var builder = new ConfigurationBuilder()            
-               .SetBasePath(env.ContentRootPath)
-               .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-               .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true);
-
-            /*if (env.IsDevelopment())
-            {
-                // For more details on using the user secret store see http://go.microsoft.com/fwlink/?LinkID=532709
-                builder.AddUserSecrets();
-            }*/
-
-            builder.AddEnvironmentVariables();
-
-            _configuration = builder.Build();
-            _environment = env;
+            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
         }
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services
-                .AddMvc()
-                .AddRazorOptions(razor =>
-                {
-                    razor.ViewLocationExpanders.Add(new UI.CustomViewLocationExpander());
-                });
+            services.AddMvc().AddRazorOptions(razor =>
+            {
+                razor.ViewLocationExpanders.Add(new LocationExpander());
+            });
 
-           //services.AddTransient<IEmailService, DefaultEmailService>();
+            services.AddAuthentication(options =>
+            {
+                options.DefaultScheme =
+                    CookieAuthenticationDefaults.AuthenticationScheme;
+
+                options.DefaultChallengeScheme = "oidc";
+            })
+                .AddCookie(options =>
+                {
+                    options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
+                    options.Cookie.Name = "mvchybrid";
+                })
+                .AddOpenIdConnect("oidc", options =>
+                {
+                    options.Authority = "http://localhost:5000";
+                    options.RequireHttpsMetadata = false;
+
+                    options.ClientSecret = "secret";
+                    options.ClientId = "mvc.hybrid";
+
+                    options.ResponseType = "code id_token";
+                    
+                    options.Scope.Clear();
+                    options.Scope.Add("openid");
+                    options.Scope.Add("profile");
+                    options.Scope.Add("email");
+                    options.Scope.Add("api1");
+                    options.Scope.Add("idbase");
+                    options.Scope.Add("offline_access");
+
+                    options.GetClaimsFromUserInfoEndpoint = true;
+                    options.SaveTokens = true;
+
+                    // Map here the claims for name and role 
+                    options.TokenValidationParameters =
+                        new TokenValidationParameters
+                        {
+                            NameClaimType = JwtClaimTypes.Email,
+                            RoleClaimType = JwtClaimTypes.Role,
+                        };
+                });
         }
 
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app)
         {
-            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
-
-            //loggerFactory.AddConsole();
-            //loggerFactory.AddDebug();
-
             app.UseDeveloperExceptionPage();
             app.UseStaticFiles();
-
-            app.UseCookieAuthentication(new CookieAuthenticationOptions
-            {
-                AuthenticationScheme = "Cookies",
-                AutomaticAuthenticate = true
-            });
-
-            // https://github.com/IdentityServer/IdentityServer3/issues/841
-            var oidcOptions = new OpenIdConnectOptions
-            {
-                AuthenticationScheme = "oidc",
-                SignInScheme = "Cookies",
-                Authority = "http://localhost:5000",
-                RequireHttpsMetadata = false,
-                PostLogoutRedirectUri = "http://localhost:3308/",
-                ClientId = "mvc",
-                ClientSecret = "secret",
-                ResponseType = "code id_token",
-                GetClaimsFromUserInfoEndpoint = true,
-                SaveTokens = true,
-                Events = new OpenIdConnectEvents
-                {
-                    OnTicketReceived = async context =>
-                    {
-                        var profileId = Guid.Parse(context.Ticket.Principal.FindFirst("sub").Value);
-                        var emailClaim = context?.Ticket?.Principal?.FindFirst("email");
-
-                        // Load current domain profile/user object if dont find any create one
-                    },
-                    // Provide idTokenHint and PostLogoutRedirectUri for better logout flow
-                    OnRedirectToIdentityProviderForSignOut = async context =>
-                    {
-                        var idTokenHint = await context.HttpContext.Authentication.GetTokenAsync("id_token");
-                        if (idTokenHint != null)
-                        {
-                            context.ProtocolMessage.IdTokenHint = idTokenHint;
-                            context.ProtocolMessage.PostLogoutRedirectUri = "http://localhost:3308/";
-                        }
-                    }
-                }
-            };
-
-            oidcOptions.Scope.Clear();
-            oidcOptions.Scope.Add("openid");
-            oidcOptions.Scope.Add("profile");
-            oidcOptions.Scope.Add("api1");
-
-            app.UseOpenIdConnectAuthentication(oidcOptions);
-
-            app.UseMvc(routes =>
-            {
-                routes.MapRoute(
-                    name: "default",
-                    template: "{controller=Home}/{action=Index}/{id?}");
-            });
+            app.UseAuthentication();
+            app.UseMvcWithDefaultRoute();
         }
     }
 }

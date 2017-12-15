@@ -1,30 +1,23 @@
-﻿using Autofac;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using ServiceBase.Events;
-using System;
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Public
 {
+    using System;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
+    using ServiceBase.Events;
+
     public static class StartupEvents
     {
-        public static void ValidateEventServices(this IContainer container, ILogger logger)
+        public static void ValidateEventServices(
+            this IServiceCollection services,
+            ILogger logger)
         {
-            if (!container.IsRegistered<IEventService>()) { throw new Exception("IEventService not registered."); }
-        }
-    }
-
-    public class DefaultEventModule : Autofac.Module
-    {
-        /// <summary>
-        /// Loads dependencies 
-        /// </summary>
-        /// <param name="builder">The builder through which components can be registered.</param>
-        protected override void Load(ContainerBuilder builder)
-        {
-            builder.RegisterInstance(Current.Configuration.GetSection("Events").Get<EventOptions>() ?? new EventOptions());
-            builder.RegisterType<DefaultEventService>().As<IEventService>();
-            builder.RegisterType<DefaultEventSink>().As<IEventSink>();
+            if (!services.IsAdded<IEventService>())
+            {
+                throw new Exception("IEventService not registered.");
+            }
         }
     }
 }

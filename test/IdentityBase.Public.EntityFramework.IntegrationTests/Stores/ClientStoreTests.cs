@@ -1,37 +1,51 @@
-﻿// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
+// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
-
-using IdentityServer4.Models;
-using Microsoft.EntityFrameworkCore;
-using IdentityBase.Public.EntityFramework.DbContexts;
-using IdentityBase.Public.EntityFramework.Mappers;
-using IdentityBase.Public.EntityFramework.Options;
-using IdentityBase.Public.EntityFramework.Stores;
-using ServiceBase.Logging;
-using System.Linq;
-using Xunit;
 
 namespace IdentityBase.Public.EntityFramework.IntegrationTests.Stores
 {
-    public class ClientStoreTests : IClassFixture<DatabaseProviderFixture<ConfigurationDbContext>>
-    {
-        private static readonly EntityFrameworkOptions StoreOptions = new EntityFrameworkOptions();
+    using System.Linq;
+    using FluentAssertions;
+    using IdentityBase.Public.EntityFramework.DbContexts;
+    using IdentityBase.Public.EntityFramework.Mappers;
+    using IdentityBase.Public.EntityFramework.Configuration;
+    using IdentityBase.Public.EntityFramework.Stores;
+    using IdentityServer4.Models;
+    using Microsoft.EntityFrameworkCore;
+    using ServiceBase.Logging;
+    using Xunit;
 
-        public static readonly TheoryData<DbContextOptions<ConfigurationDbContext>> TestDatabaseProviders = new TheoryData<DbContextOptions<ConfigurationDbContext>>
+    public class ClientStoreTests :
+        IClassFixture<DatabaseProviderFixture<ConfigurationDbContext>>
+    {
+        private static readonly EntityFrameworkOptions StoreOptions =
+            new EntityFrameworkOptions();
+
+        public static readonly TheoryData<DbContextOptions<ConfigurationDbContext>>
+            TestDatabaseProviders = new TheoryData<DbContextOptions<ConfigurationDbContext>>
         {
-            DatabaseProviderBuilder.BuildInMemory<ConfigurationDbContext>(nameof(ClientStoreTests), StoreOptions),
-            DatabaseProviderBuilder.BuildSqlite<ConfigurationDbContext>(nameof(ClientStoreTests), StoreOptions),
-            DatabaseProviderBuilder.BuildSqlServer<ConfigurationDbContext>(nameof(ClientStoreTests), StoreOptions)
+            DatabaseProviderBuilder.BuildInMemory<ConfigurationDbContext>(
+                nameof(ClientStoreTests), StoreOptions),
+
+            DatabaseProviderBuilder.BuildSqlite<ConfigurationDbContext>(
+                nameof(ClientStoreTests), StoreOptions),
+          
+            DatabaseProviderBuilder.BuildSqlServer<ConfigurationDbContext>(
+                nameof(ClientStoreTests), StoreOptions)
         };
 
         public ClientStoreTests(DatabaseProviderFixture<ConfigurationDbContext> fixture)
         {
-            fixture.Options = TestDatabaseProviders.SelectMany(x => x.Select(y => (DbContextOptions<ConfigurationDbContext>)y)).ToList();
+            fixture.Options = TestDatabaseProviders
+                .SelectMany(x => x
+                    .Select(y => (DbContextOptions<ConfigurationDbContext>)y))
+                .ToList();
+
             fixture.StoreOptions = StoreOptions;
         }
 
         [Theory, MemberData(nameof(TestDatabaseProviders))]
-        public void FindClientByIdAsync_WhenClientExists_ExpectClientRetured(DbContextOptions<ConfigurationDbContext> options)
+        public void FindClientByIdAsync_WhenClientExists_ExpectClientRetured(
+            DbContextOptions<ConfigurationDbContext> options)
         {
             var testClient = new Client
             {
@@ -39,20 +53,68 @@ namespace IdentityBase.Public.EntityFramework.IntegrationTests.Stores
                 ClientName = "Test Client"
             };
 
-            using (var context = new ConfigurationDbContext(options, StoreOptions))
+            using (var context =
+                new ConfigurationDbContext(options, StoreOptions))
             {
                 context.Clients.Add(testClient.ToEntity());
                 context.SaveChanges();
             }
 
             Client client;
-            using (var context = new ConfigurationDbContext(options, StoreOptions))
+            using (var context =
+                new ConfigurationDbContext(options, StoreOptions))
             {
-                var store = new ClientStore(context, NullLogger<ClientStore>.Create());
+                var store = new ClientStore(
+                    context,
+                    NullLogger<ClientStore>.Create()
+                );
+
                 client = store.FindClientByIdAsync(testClient.ClientId).Result;
             }
 
             Assert.NotNull(client);
+        }
+
+        [Theory, MemberData(nameof(TestDatabaseProviders))]
+        public void FindClientByIdAsync_WhenClientExists_ExpectClientPropertiesRetured(
+            DbContextOptions<ConfigurationDbContext> options)
+        {
+            var testClient = new Client
+            {
+                ClientId = "properties_test_client",
+                ClientName = "Properties Test Client",
+                Properties =
+                {
+                    { "foo1", "bar1" },
+                    { "foo2", "bar2" },
+                }
+            };
+
+            using (var context =
+                new ConfigurationDbContext(options, StoreOptions))
+            {
+                context.Clients.Add(testClient.ToEntity());
+                context.SaveChanges();
+            }
+
+            Client client;
+            using (var context =
+                new ConfigurationDbContext(options, StoreOptions))
+            {
+                var store = new ClientStore(
+                    context,
+                    NullLogger<ClientStore>.Create()
+                );
+
+                client = store.FindClientByIdAsync(testClient.ClientId).Result;
+            }
+
+            client.Properties.Should().NotBeNull();
+            client.Properties.Count.Should().Be(2);
+            client.Properties.ContainsKey("foo1").Should().BeTrue();
+            client.Properties.ContainsKey("foo2").Should().BeTrue();
+            client.Properties["foo1"].Should().Be("bar1");
+            client.Properties["foo2"].Should().Be("bar2");
         }
     }
 }

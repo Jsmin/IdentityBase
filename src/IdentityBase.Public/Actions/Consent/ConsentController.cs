@@ -1,14 +1,17 @@
-﻿using IdentityServer4;
-using IdentityServer4.Services;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using System.Linq;
-using System.Threading.Tasks;
-using IdentityServer4.Models;
-using IdentityServer4.Stores;
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Public.Actions.Consent
 {
+    using System.Linq;
+    using System.Threading.Tasks;
+    using IdentityServer4;
+    using IdentityServer4.Models;
+    using IdentityServer4.Services;
+    using IdentityServer4.Stores;
+    using Microsoft.AspNetCore.Mvc;
+    using Microsoft.Extensions.Logging;
+
     public class ConsentController : Controller
     {
         private readonly ILogger<ConsentController> _logger;
@@ -22,29 +25,34 @@ namespace IdentityBase.Public.Actions.Consent
             IClientStore clientStore,
             IResourceStore resourceStore)
         {
-            _logger = logger;
-            _interaction = interaction;
-            _clientStore = clientStore;
-            _resourceStore = resourceStore;
+            this._logger = logger;
+            this._interaction = interaction;
+            this._clientStore = clientStore;
+            this._resourceStore = resourceStore;
         }
 
         [HttpGet("consent", Name = "Consent")]
         public async Task<IActionResult> Index(string returnUrl)
         {
-            var vm = await BuildViewModelAsync(returnUrl);
+            ConsentViewModel vm = await this.BuildViewModelAsync(returnUrl);
+
             if (vm != null)
             {
-                return View("Index", vm);
+                return this.View("Index", vm);
             }
 
-            return View("Error");
+            return this.View("Error");
         }
 
         [HttpPost("consent")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Index(string button, ConsentInputModel model)
+        public async Task<IActionResult> Index(
+            string button,
+            ConsentInputModel model)
         {
-            var request = await _interaction.GetAuthorizationContextAsync(model.ReturnUrl);
+            AuthorizationRequest request = await this._interaction
+                .GetAuthorizationContextAsync(model.ReturnUrl);
+
             ConsentResponse response = null;
 
             if (button == "no")
@@ -53,7 +61,8 @@ namespace IdentityBase.Public.Actions.Consent
             }
             else if (button == "yes" && model != null)
             {
-                if (model.ScopesConsented != null && model.ScopesConsented.Any())
+                if (model.ScopesConsented != null &&
+                    model.ScopesConsented.Any())
                 {
                     response = new ConsentResponse
                     {
@@ -63,55 +72,80 @@ namespace IdentityBase.Public.Actions.Consent
                 }
                 else
                 {
-                    ModelState.AddModelError("", "You must pick at least one permission.");
+                    this.ModelState.AddModelError(
+                        "You must pick at least one permission.");
                 }
             }
             else
             {
-                ModelState.AddModelError("", "Invalid Selection");
+                this.ModelState.AddModelError("Invalid Selection");
             }
 
             if (response != null)
             {
-                await _interaction.GrantConsentAsync(request, response);
-                return Redirect(model.ReturnUrl);
+                await this._interaction.GrantConsentAsync(request, response);
+                return this.Redirect(model.ReturnUrl);
             }
 
-            var vm = await BuildViewModelAsync(model.ReturnUrl, model);
+            ConsentViewModel vm =
+                await this.BuildViewModelAsync(model.ReturnUrl, model);
+
             if (vm != null)
             {
-                return View("Index", vm);
+                return this.View("Index", vm);
             }
 
-            return View("Error");
+            return this.View("Error");
         }
 
-        private async Task<ConsentViewModel> BuildViewModelAsync(string returnUrl, ConsentInputModel model = null)
+        private async Task<ConsentViewModel> BuildViewModelAsync(
+            string returnUrl,
+            ConsentInputModel model = null)
         {
-            var request = await _interaction.GetAuthorizationContextAsync(returnUrl);
+            AuthorizationRequest request = await this._interaction
+                .GetAuthorizationContextAsync(returnUrl);
+
             if (request != null)
             {
-                var client = await _clientStore.FindEnabledClientByIdAsync(request.ClientId);
+                Client client = await this._clientStore
+                    .FindEnabledClientByIdAsync(request.ClientId);
+
                 if (client != null)
                 {
-                    var resources = await _resourceStore.FindEnabledResourcesByScopeAsync(request.ScopesRequested);
-                    if (resources != null && (resources.IdentityResources.Any() || resources.ApiResources.Any()))
+                    Resources resources = await this._resourceStore
+                        .FindEnabledResourcesByScopeAsync(
+                            request.ScopesRequested);
+
+                    if (resources != null &&
+                        (resources.IdentityResources.Any() ||
+                            resources.ApiResources.Any()))
                     {
-                        return CreateConsentViewModel(model, returnUrl, request, client, resources);
+                        return this.CreateConsentViewModel(model,
+                            returnUrl,
+                            request,
+                            client,
+                            resources);
                     }
                     else
                     {
-                        _logger.LogError("No scopes matching: {0}", request.ScopesRequested.Aggregate((x, y) => x + ", " + y));
+                        this._logger.LogError(
+                            "No scopes matching: {0}",
+                            request.ScopesRequested
+                                .Aggregate((x, y) => x + ", " + y));
                     }
                 }
                 else
                 {
-                    _logger.LogError("Invalid client id: {0}", request.ClientId);
+                    this._logger.LogError(
+                        "Invalid client id: {0}",
+                        request.ClientId);
                 }
             }
             else
             {
-                _logger.LogError("No consent request matching request: {0}", returnUrl);
+                this._logger.LogError(
+                    "No consent request matching request: {0}",
+                    returnUrl);
             }
 
             return null;
@@ -122,10 +156,13 @@ namespace IdentityBase.Public.Actions.Consent
             AuthorizationRequest request,
             Client client, Resources resources)
         {
-            var vm = new ConsentViewModel()
+            ConsentViewModel vm = new ConsentViewModel()
             {
                 RememberConsent = model?.RememberConsent ?? true,
-                ScopesConsented = model?.ScopesConsented ?? Enumerable.Empty<string>(),
+
+                ScopesConsented = model?.ScopesConsented ??
+                    Enumerable.Empty<string>(),
+
                 ReturnUrl = returnUrl,
                 ClientName = client.ClientName,
                 ClientUrl = client.ClientUri,
@@ -133,21 +170,35 @@ namespace IdentityBase.Public.Actions.Consent
                 AllowRememberConsent = client.AllowRememberConsent
             };
 
-            vm.IdentityScopes = resources.IdentityResources.Select(x => CreateScopeViewModel(x, vm.ScopesConsented.Contains(x.Name) || model == null)).ToArray();
-            vm.ResourceScopes = resources.ApiResources.SelectMany(x => x.Scopes).Select(x => CreateScopeViewModel(x, vm.ScopesConsented.Contains(x.Name) || model == null)).ToArray();
+            vm.IdentityScopes = resources.IdentityResources
+                .Select(x => CreateScopeViewModel(x, vm.ScopesConsented
+                    .Contains(x.Name) || model == null))
+                .ToArray();
+
+            vm.ResourceScopes = resources.ApiResources
+                .SelectMany(x => x.Scopes)
+                .Select(x => CreateScopeViewModel(x, vm.ScopesConsented
+                    .Contains(x.Name) || model == null))
+                .ToArray();
 
             // TODO: make use of application settings
             if (resources.OfflineAccess)
             {
-                vm.ResourceScopes = vm.ResourceScopes.Union(new ScopeViewModel[] {
-                    GetOfflineAccessScope(vm.ScopesConsented.Contains(IdentityServerConstants.StandardScopes.OfflineAccess) || model == null)
-                });
+                vm.ResourceScopes = vm.ResourceScopes
+                    .Union(new ScopeViewModel[] {
+                        GetOfflineAccessScope(vm.ScopesConsented.Contains(
+                            IdentityServerConstants.StandardScopes.OfflineAccess) ||
+                            model == null
+                        )
+                    });
             }
 
             return vm;
         }
 
-        public ScopeViewModel CreateScopeViewModel(IdentityResource identity, bool check)
+        public ScopeViewModel CreateScopeViewModel(
+            IdentityResource identity,
+            bool check)
         {
             return new ScopeViewModel
             {
@@ -179,7 +230,8 @@ namespace IdentityBase.Public.Actions.Consent
             {
                 Name = IdentityServerConstants.StandardScopes.OfflineAccess,
                 DisplayName = "Offline Access",
-                Description = "Access to your applications and resources, even when you are offline",
+                Description = "Access to your applications and resources, " +
+                "even when you are offline",
                 Emphasize = true,
                 Checked = check
             };

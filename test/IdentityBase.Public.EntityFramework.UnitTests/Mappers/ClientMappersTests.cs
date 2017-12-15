@@ -1,69 +1,83 @@
-﻿using IdentityBase.Public.EntityFramework.Entities;
-using IdentityBase.Public.EntityFramework.Mappers;
-using System;
-using System.Collections.Generic;
-using Xunit;
+// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Public.EntityFramework.UnitTests.Mappers
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using FluentAssertions;
+    using IdentityBase.Public.EntityFramework.Mappers;
+    using Xunit;
+    using Client = IdentityServer4.Models.Client;
+
     public class ClientMappersTests
     {
+       // [Fact]
+       // public void ClientAutomapperConfigurationIsValid()
+       // {
+       //     ClientMappers.Mapper.ConfigurationProvider
+       //         .AssertConfigurationIsValid();
+       //
+       //     var model = new Client();
+       //     var mappedEntity = model.ToEntity();
+       //     var mappedModel = mappedEntity.ToModel();
+       //
+       //     Assert.NotNull(mappedModel);
+       //     Assert.NotNull(mappedEntity);
+       // }
+
         [Fact]
-        public void ClientModelToEntityConfigurationIsValid()
+        public void Properties_Map()
         {
-            var model = new IdentityServer4.Models.Client();
-
-            // TODO: set references
-
+            var model = new Client()
+            {
+                Properties =
+                {
+                    {"foo1", "bar1"},
+                    {"foo2", "bar2"},
+                }
+            };
+            
             var mappedEntity = model.ToEntity();
+
+            mappedEntity.Properties.Count.Should().Be(2);
+
+            var foo1 = mappedEntity.Properties
+                .FirstOrDefault(x => x.Key == "foo1");
+
+            foo1.Should().NotBeNull();
+            foo1.Value.Should().Be("bar1");
+
+            var foo2 = mappedEntity.Properties
+                .FirstOrDefault(x => x.Key == "foo2");
+
+            foo2.Should().NotBeNull();
+            foo2.Value.Should().Be("bar2");
+
             var mappedModel = mappedEntity.ToModel();
 
-            Assert.NotNull(mappedModel);
-            Assert.NotNull(mappedEntity);
-            ClientMappers.Mapper.ConfigurationProvider.AssertConfigurationIsValid();
+            mappedModel.Properties.Count.Should().Be(2);
+            mappedModel.Properties.ContainsKey("foo1").Should().BeTrue();
+            mappedModel.Properties.ContainsKey("foo2").Should().BeTrue();
+            mappedModel.Properties["foo1"].Should().Be("bar1");
+            mappedModel.Properties["foo2"].Should().Be("bar2");
         }
 
         [Fact]
-        public void ClientEntityToModelConfigurationIsValid()
+        public void Duplicates_properties_in_db_map()
         {
-            var model = new Client();
-
-            model.ClientId = "client";
-            model.ClientSecrets = new List<ClientSecret> {
-                new ClientSecret
+            var entity = new Entities.Client
+            {
+                Properties = new List<Entities.ClientProperty>()
                 {
-                    Id = Guid.NewGuid(),
-                    Value = "secret",
-                    Description = "description",
-                    Type = "SharedSecret",
-                    Client = model
+                    new Entities.ClientProperty{Key = "foo1", Value = "bar1"},
+                    new Entities.ClientProperty{Key = "foo1", Value = "bar2"},
                 }
             };
 
-            model.AllowedGrantTypes = new List<ClientGrantType> {
-                new ClientGrantType
-                {
-                    Id = Guid.NewGuid(),
-                    GrantType = "sd",
-                    Client = model
-                }
-            };
-
-            model.AllowedScopes = new List<ClientScope>{
-                new ClientScope
-                {
-                    Id = Guid.NewGuid(),
-                    Scope = "api1",
-                    Client = model
-                }
-            };
-
-            var mappedModel = model.ToModel();
-            var mappedEntity = mappedModel.ToEntity();
-
-            Assert.NotNull(mappedModel);
-            Assert.NotNull(mappedEntity);
-            ClientMappers.Mapper.ConfigurationProvider.AssertConfigurationIsValid();
+            Action modelAction = () => entity.ToModel();
+            modelAction.ShouldThrow<Exception>();
         }
     }
 }

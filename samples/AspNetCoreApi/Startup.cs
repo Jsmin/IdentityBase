@@ -1,30 +1,49 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using System.IdentityModel.Tokens.Jwt;
-
 namespace AspNetCoreApi
 {
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.Extensions.DependencyInjection;
+    using IdentityServer4.AccessTokenValidation;
+
     public class Startup
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddMvcCore()
+            services
+                .AddMvcCore()
                 .AddJsonFormatters()
                 .AddAuthorization();
+
+            services.AddCors();
+            services.AddDistributedMemoryCache();
+
+            services
+                .AddAuthentication(
+                    IdentityServerAuthenticationDefaults.AuthenticationScheme)
+
+                .AddIdentityServerAuthentication(options =>
+                {
+                    options.Authority = "http://localhost:5000";
+                    options.RequireHttpsMetadata = false;
+
+                    options.ApiName = "api1";
+                    options.ApiSecret = "secret";
+                });
         }
 
         public void Configure(IApplicationBuilder app)
         {
-            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
-
-            app.UseIdentityServerAuthentication(new IdentityServerAuthenticationOptions
+            app.UseCors(policy =>
             {
-                Authority = "http://localhost:5000",
-                RequireHttpsMetadata = false,
-                AllowedScopes = { "api1" },
-                AutomaticAuthenticate = true
+                policy.WithOrigins(
+                    "http://localhost:28895",
+                    "http://localhost:7017");
+
+                policy.AllowAnyHeader();
+                policy.AllowAnyMethod();
+                policy.WithExposedHeaders("WWW-Authenticate");
             });
 
+            app.UseAuthentication();
             app.UseMvc();
         }
     }

@@ -1,39 +1,26 @@
-﻿using IdentityBase.Public.EntityFramework.Entities;
-using IdentityBase.Public.EntityFramework.Mappers;
-using Xunit;
+// Copyright (c) Brock Allen & Dominick Baier. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Public.EntityFramework.UnitTests.Mappers
 {
+    using IdentityBase.Public.EntityFramework.Mappers;
+    using IdentityServer4.Models;
+    using Xunit;
+
     public class PersistedGrantMappersTests
     {
         [Fact]
-        public void PersistedGrantModelToEntityConfigurationIsValid()
-        {
-            var model = new IdentityServer4.Models.PersistedGrant();
-
-            // TODO: set references
-
-            var mappedEntity = model.ToEntity();
-            var mappedModel = mappedEntity.ToModel();
-
-            Assert.NotNull(mappedModel);
-            Assert.NotNull(mappedEntity);
-            PersistedGrantMappers.Mapper.ConfigurationProvider.AssertConfigurationIsValid();
-        }
-
-        [Fact]
-        public void PersistedGrantEntityToModelConfigurationIsValid()
+        public void PersistedGrantAutomapperConfigurationIsValid()
         {
             var model = new PersistedGrant();
-
-            // TODO: set references
-
-            var mappedModel = model.ToModel();
-            var mappedEntity = mappedModel.ToEntity();
-
+            var mappedEntity = model.ToEntity();
+            var mappedModel = mappedEntity.ToModel();
+            
             Assert.NotNull(mappedModel);
             Assert.NotNull(mappedEntity);
-            PersistedGrantMappers.Mapper.ConfigurationProvider.AssertConfigurationIsValid();
+
+            PersistedGrantMappers.Mapper.ConfigurationProvider
+                .AssertConfigurationIsValid();
         }
     }
 }

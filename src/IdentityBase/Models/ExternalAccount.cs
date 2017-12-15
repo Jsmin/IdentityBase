@@ -1,12 +1,17 @@
-﻿using System;
-using System.ComponentModel.DataAnnotations;
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Models
 {
+    using System;
+    using System.ComponentModel.DataAnnotations;
+
     public class ExternalAccount
     {
         public Guid UserAccountId { get; set; }
+
         public string Provider { get; set; }
+
         public string Subject { get; set; }
 
         // Maximum length of a valid email address is 254 characters.
@@ -23,6 +28,7 @@ namespace IdentityBase.Models
         public DateTime? LastLoginAt { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
         public DateTime UpdatedAt { get; set; }
 
         public UserAccount UserAccount { get; set; }

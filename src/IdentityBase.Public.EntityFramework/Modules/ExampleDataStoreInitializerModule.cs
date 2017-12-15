@@ -1,25 +1,33 @@
-﻿using Autofac;
-using Autofac.Extensions.DependencyInjection;
-using IdentityBase.Public.EntityFramework.Options;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace IdentityBase.Public.EntityFramework
 {
-    public class ExampleDataStoreInitializerModule : Autofac.Module
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.DependencyInjection;
+    using ServiceBase.Modules;
+
+    public class ExampleDataStoreInitializerModule : IModule
     {
-        /// <summary>
-        /// Loads dependencies 
-        /// </summary>
-        /// <param name="builder">The builder through which components can be registered.</param>
-        protected override void Load(ContainerBuilder builder)
+        public void ConfigureServices(
+            IServiceCollection services,
+            IConfiguration configuration)
         {
-            var services = new ServiceCollection();
-            var config = Current.Configuration;
-            var options = new EntityFrameworkOptions();
-            Current.Configuration.GetSection("EntityFramework").Bind(options);
-            services.AddExampleDataStoreInitializer(options);
-            builder.Populate(services);
+            services.AddTransient<ExampleDataStoreInitializer>();
+        }
+
+        public void Configure(IApplicationBuilder app)
+        {
+            using (IServiceScope serviceScope = app.ApplicationServices
+                .GetRequiredService<IServiceScopeFactory>().CreateScope())
+            {
+                ExampleDataStoreInitializer initializer = serviceScope
+                    .ServiceProvider
+                    .GetService<ExampleDataStoreInitializer>();
+
+                if (initializer != null)
+                {
+                    initializer.InitializeStores();
+                }
+            }
         }
     }
 }

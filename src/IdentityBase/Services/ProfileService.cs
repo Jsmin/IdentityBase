@@ -1,37 +1,45 @@
-﻿using IdentityModel;
-using IdentityServer4.Models;
-using IdentityServer4.Services;
-using System;
-using System.Collections.Generic;
-using System.Security.Claims;
-using System.Threading.Tasks;
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Services
 {
+    using IdentityModel;
+    using IdentityServer4.Models;
+    using IdentityServer4.Services;
+    using System;
+    using System.Collections.Generic;
+    using System.Security.Claims;
+    using System.Threading.Tasks;
+    using IdentityBase.Models;
+
     public class ProfileService : IProfileService
     {
         private readonly IUserAccountStore _userAccountStore;
 
         public ProfileService(IUserAccountStore userAccountStore)
         {
-            _userAccountStore = userAccountStore;
+            this._userAccountStore = userAccountStore;
         }
 
         public Task GetProfileDataAsync(ProfileDataRequestContext context)
         {
-            var userAccountId = Guid.Parse(context.Subject.FindFirst(JwtClaimTypes.Subject).Value);
-            var userAccount = _userAccountStore.LoadByIdAsync(userAccountId).Result;
+            Guid userAccountId = Guid.Parse(context.Subject
+                .FindFirst(JwtClaimTypes.Subject).Value);
+
+            UserAccount userAccount = this._userAccountStore
+                .LoadByIdAsync(userAccountId).Result;
 
             // TODO: get claims from db user
-            var claims = new List<Claim>
+            List<Claim> claims = new List<Claim>
             {
                 new Claim(JwtClaimTypes.Subject, userAccount.Id.ToString()),
                 new Claim(JwtClaimTypes.Email, userAccount.Email),
-                new Claim(JwtClaimTypes.EmailVerified, userAccount.IsEmailVerified.ToString().ToLower(), ClaimValueTypes.Boolean)
 
-               /* new Claim(JwtClaimTypes.Name, $"{user.FirstName} {user.LastName}"),
-                new Claim(JwtClaimTypes.GivenName, user.FirstName),
-                new Claim(JwtClaimTypes.FamilyName, user.LastName),*/
+                new Claim(
+                    JwtClaimTypes.EmailVerified,
+                    userAccount.IsEmailVerified.ToString().ToLower(),
+                    ClaimValueTypes.Boolean
+                )
             };
 
             context.IssuedClaims = claims;
@@ -41,8 +49,11 @@ namespace IdentityBase.Services
 
         public Task IsActiveAsync(IsActiveContext context)
         {
-            var userId = Guid.Parse(context.Subject.FindFirst(JwtClaimTypes.Subject).Value);
-            var user = _userAccountStore.LoadByIdAsync(userId).Result;
+            Guid userId = Guid.Parse(context.Subject
+                .FindFirst(JwtClaimTypes.Subject).Value);
+
+            UserAccount user = this._userAccountStore
+                .LoadByIdAsync(userId).Result;
 
             context.IsActive = user != null && user.IsLoginAllowed;
 

@@ -1,45 +1,54 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Logging;
-using System;
-using System.IO;
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Public
 {
+    using System;
+    using System.IO;
+    using IdentityBase.Configuration;
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.AspNetCore.Hosting;
+    using Microsoft.Extensions.FileProviders;
+    using ServiceBase.Extensions;
+
     public static class StartupStaticFiles
     {
         public static void UseStaticFiles(
-            this IApplicationBuilder app, 
-            IConfigurationRoot config,
-            ILogger logger, 
+            this IApplicationBuilder app,
+            ApplicationOptions options,
             IHostingEnvironment environment)
         {
             app.UseStaticFiles(new StaticFileOptions()
             {
-                FileProvider = new PhysicalFileProvider(GetStaticFilesPath(config, environment)),
+                FileProvider = new PhysicalFileProvider(
+                    GetStaticFilesPath(
+                        options.ThemePath,
+                        environment.ContentRootPath
+                    )
+                ),
             });
         }
 
         private static string GetStaticFilesPath(
-            IConfigurationRoot config,
-            IHostingEnvironment environment)
+            string themePath,
+            string contentRootPath)
         {
-            var staticFilesPath = config["App:ThemePath"];
-            if (!String.IsNullOrWhiteSpace(staticFilesPath))
+            if (String.IsNullOrWhiteSpace(themePath))
             {
-                staticFilesPath = Path.IsPathRooted(staticFilesPath)
-                    ? Path.Combine(staticFilesPath, "Public")
-                    : Path.Combine(environment.ContentRootPath, staticFilesPath, "Public");
-
-                if (Directory.Exists(staticFilesPath))
-                {
-                    return staticFilesPath; 
-                }
+                throw new ArgumentNullException(nameof(themePath)); 
             }
-
-            return Path.Combine(environment.ContentRootPath, "Themes/Default/Public");
+            
+            themePath = Path.GetFullPath(
+                Path.IsPathRooted(themePath) ?
+                    Path.Combine(themePath.RemoveTrailingSlash(), "Public") :
+                    Path.Combine(
+                        contentRootPath.RemoveTrailingSlash(),
+                        themePath.RemoveTrailingSlash(),
+                        "Public"
+                    )
+                );
+            
+            return themePath;
         }
     }
 }

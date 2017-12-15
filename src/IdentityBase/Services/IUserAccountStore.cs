@@ -1,10 +1,13 @@
-﻿using IdentityBase.Models;
-using ServiceBase.Collections;
-using System;
-using System.Threading.Tasks;
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Services
 {
+    using System;
+    using System.Threading.Tasks;
+    using IdentityBase.Models;
+    using ServiceBase.Collections;
+
     public interface IUserAccountStore
     {
         /// <summary>
@@ -36,7 +39,9 @@ namespace IdentityBase.Services
         /// <param name="provider"></param>
         /// <param name="subject"></param>
         /// <returns></returns>
-        Task<UserAccount> LoadByExternalProviderAsync(string provider, string subject);
+        Task<UserAccount> LoadByExternalProviderAsync(
+            string provider,
+            string subject);
 
         /// <summary>
         /// Load by id
@@ -54,10 +59,14 @@ namespace IdentityBase.Services
 
         Task DeleteByIdAsync(Guid id);
 
-        Task<ExternalAccount> WriteExternalAccountAsync(ExternalAccount externalAccount);
+        Task<ExternalAccount> WriteExternalAccountAsync(
+            ExternalAccount externalAccount);
 
         Task DeleteExternalAccountAsync(Guid id);
 
-        Task<PagedList<UserAccount>> LoadInvitedUserAccountsAsync(int take, int skip = 0, Guid? invitedBy = null);
+        Task<PagedList<UserAccount>> LoadInvitedUserAccountsAsync(
+            int take,
+            int skip = 0,
+            Guid? invitedBy = null);
     }
 }

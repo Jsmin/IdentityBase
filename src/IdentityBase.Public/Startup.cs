@@ -1,125 +1,137 @@
-﻿using System;
-using Autofac;
-using Autofac.Configuration;
-using Autofac.Extensions.DependencyInjection;
-using IdentityBase.Configuration;
-using IdentityBase.Crypto;
-using IdentityBase.Extensions;
-using IdentityBase.Services;
-using IdentityServer4;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Serilog;
-using ServiceBase;
-using ServiceBase.Configuration;
-
-//var myService = (IService)DependencyResolver.Current.GetService(typeof(IService));
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Public
 {
+    using System;
+    using System.Net.Http;
+    using IdentityBase.Configuration;
+    using IdentityBase.Crypto;
+    using IdentityBase.Services;
+    using IdentityServer4;
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.AspNetCore.Hosting;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.Extensions.Caching.Memory;
+    using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
+    using ServiceBase;
+    using ServiceBase.Modules;
+
     /// <summary>
     /// Application startup class
     /// </summary>
     public class Startup : IStartup
     {
-        private readonly Microsoft.Extensions.Logging.ILogger _logger;
+        private readonly ILogger _logger;
         private readonly IHostingEnvironment _environment;
-        private IContainer _applicationContainer;
-
-        public IConfigurationRoot Configuration { get; set; }
+        private readonly IConfiguration _configuration;
+        private readonly ModuleHost _moduleHost;
+        private readonly HttpMessageHandler _httpMessageHandler;
 
         /// <summary>
         ///
         /// </summary>
-        /// <param name="environment"></param>
-        /// <param name="logger"></param>
-        public Startup(IHostingEnvironment environment, ILogger<Startup> logger)
+        /// <param name="configuration">Instance of <see cref="configuration"/>
+        /// </param>
+        /// <param name="environment">Instance of
+        /// <see cref="IHostingEnvironment"/></param>
+        /// <param name="logger">Instance of <see cref="ILogger{Startup}"/>
+        /// <param name="sharedHandler">Instance of
+        /// <see cref="HttpMessageHandler"/>. It will be used to make outgoing
+        /// HTTP requests.</param>
+        /// </param>
+        public Startup(
+            IConfiguration configuration,
+            IHostingEnvironment environment,
+            ILogger<Startup> logger,
+            HttpMessageHandler httpMessageHandler = null)
         {
-            _logger = logger;
-            _environment = environment;
+            this._logger = logger;
+            this._environment = environment;
+            this._configuration = configuration;
+            this._httpMessageHandler = httpMessageHandler;
+            this._moduleHost = new ModuleHost(configuration);
         }
 
         /// <summary>
-        ///
+        /// Configurates the services
         /// </summary>
-        /// <param name="services"></param>
-        /// <returns></returns>
-        public virtual IServiceProvider ConfigureServices(IServiceCollection services)
+        /// <param name="services">
+        /// Instance of <see cref="IServiceCollection"/>.
+        /// </param>
+        /// <returns>
+        /// Instance of <see cref="IServiceProvider"/>.
+        /// </returns>
+        public IServiceProvider ConfigureServices(IServiceCollection services)
         {
-            if (Configuration == null)
-            {
-                Configuration = ConfigurationSetup.Configure(_environment, (confBuilder) =>
-                {
-                    if (_environment.IsDevelopment())
-                    {
-                        confBuilder.AddUserSecrets<Startup>();
-                    }
-                });
-            }
+            this._logger.LogInformation("Services Configure");
 
-            _logger.LogInformation("Services Configure");
-
-            var options = Configuration.GetSection("App")
+            ApplicationOptions options = this._configuration.GetSection("App")
                 .Get<ApplicationOptions>() ?? new ApplicationOptions();
 
-            services.AddSingleton(Configuration);
+            services.AddSingleton(this._configuration);
             services.AddSingleton(options);
-            services.AddIdentityServer(Configuration, _logger, _environment);
+
+            services.AddIdentityServer(
+                this._configuration,
+                this._logger,
+                this._environment);
+
             services.AddTransient<ICrypto, DefaultCrypto>();
             services.AddTransient<UserAccountService>();
             services.AddTransient<ClientService>();
             services.AddAntiforgery();
+            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
             services.AddCors(corsOpts =>
             {
                 corsOpts.AddPolicy("CorsPolicy",
                     corsBuilder => corsBuilder.WithOrigins(
-                        Configuration.GetValue<string>("Host:Cors")));
+                        this._configuration.GetValue<string>("Host:Cors")));
             });
 
-            services.AddWebApi(options);
-            services.AddMvc(options, _environment);
+            services.AddWebApi(options, this._httpMessageHandler);
+            services.AddMvc(options, this._environment);
 
-            // Update current instances
-            Current.Configuration = Configuration;
-            Current.Logger = _logger;
+            // https://github.com/aspnet/Security/issues/1310
+            services
+                .AddAuthentication(
+                    IdentityServerConstants.ExternalCookieAuthenticationScheme)
+                .AddCookie();
 
-            // Add AutoFac continer and register modules form config
-            var builder = new ContainerBuilder();
-            builder.Populate(services);
-            if (Configuration.ContainsSection("Services"))
-            {
-                builder.RegisterModule(
-                    new ConfigurationModule(Configuration.GetSection("Services")));
-            }
-            _applicationContainer = builder.Build();
-            _applicationContainer.ValidateDataLayerServices(_logger);
-            _applicationContainer.ValidateEmailSenderServices(_logger);
-            _applicationContainer.ValidateSmsServices(_logger);
-            _applicationContainer.ValidateEventServices(_logger);
+            this._moduleHost.ConfigureServices(services);
 
-            Current.Container = _applicationContainer;
+            services.ValidateDataLayerServices(this._logger);
+            services.ValidateEmailSenderServices(this._logger);
+            services.ValidateSmsServices(this._logger);
+            services.ValidateEventServices(this._logger);
 
-            _logger.LogInformation("Services Configured");
+            this._logger.LogInformation("Services Configured");
 
-            return new AutofacServiceProvider(_applicationContainer);
+            return services.BuildServiceProvider();
         }
 
+        /// <summary>
+        /// Configures the pipeline 
+        /// </summary>
+        /// <param name="app">
+        /// Instance of <see cref="IApplicationBuilder"/>.
+        /// </param>
         public virtual void Configure(IApplicationBuilder app)
         {
-            _logger.LogInformation("Application Configure");
+            this._logger.LogInformation("Application Configure");
 
-            var env = app.ApplicationServices.GetRequiredService<IHostingEnvironment>();
-            var appLifetime = app.ApplicationServices.GetRequiredService<IApplicationLifetime>();
-            var options = app.ApplicationServices.GetRequiredService<ApplicationOptions>();
+            IHostingEnvironment env = app.ApplicationServices
+                .GetRequiredService<IHostingEnvironment>();
+            
+            ApplicationOptions options = app.ApplicationServices
+                .GetRequiredService<ApplicationOptions>();
 
             app.UseMiddleware<RequestIdMiddleware>();
+            app.UseLogging();
 
-            app.UseLogging(Configuration); 
-            
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -130,72 +142,13 @@ namespace IdentityBase.Public
             }
 
             app.UseCors("CorsPolicy");
-            app.UseStaticFiles(Configuration, _logger, _environment);
-
+            app.UseStaticFiles(options, this._environment);
             app.UseIdentityServer();
-
-            app.UseCookieAuthentication(new CookieAuthenticationOptions
-            {
-                AuthenticationScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme,
-                AutomaticAuthenticate = false,
-                AutomaticChallenge = false
-            });
-
-            #region Use third party authentication
-
-            if (!String.IsNullOrWhiteSpace(Configuration["Authentication:Google:ClientId"]))
-            {
-                _logger.LogInformation("Registering Google authentication scheme");
-
-                app.UseGoogleAuthentication(new GoogleOptions
-                {
-                    AuthenticationScheme = "Google",
-                    SignInScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme,
-                    ClientId = Configuration["Authentication:Google:ClientId"],
-                    ClientSecret = Configuration["Authentication:Google:ClientSecret"]
-                });
-            }
-
-            if (!String.IsNullOrWhiteSpace(Configuration["Authentication:Facebook:AppId"]))
-            {
-                _logger.LogInformation("Registering Facebook authentication scheme");
-
-                app.UseFacebookAuthentication(new FacebookOptions()
-                {
-                    AuthenticationScheme = "Facebook",
-                    SignInScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme,
-                    AppId = Configuration["Authentication:Facebook:AppId"],
-                    AppSecret = Configuration["Authentication:Facebook:AppSecret"]
-                });
-            }
-
-            #endregion Use third party authentication
-
+            app.UseAuthentication();
             app.UseWebApi(options);
             app.UseMvcWithDefaultRoute();
 
-            appLifetime.ApplicationStarted.Register(() =>
-            {
-                // TODO: implement leader election
-                options.Leader = true;
-
-                app.InitializeStores();
-
-                _logger.LogInformation("Application Started");
-            });
-
-            appLifetime.ApplicationStopping.Register(() =>
-            {
-                _logger.LogInformation("Application Stopping");
-                app.CleanupStores();
-            });
-
-            appLifetime.ApplicationStopped.Register(() =>
-            {
-                _logger.LogInformation("Application Stopped");
-            });
-
-            _logger.LogInformation("Application Configured");
+            this._moduleHost.Configure(app);
         }
     }
 }

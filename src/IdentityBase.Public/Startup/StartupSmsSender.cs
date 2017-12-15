@@ -1,44 +1,23 @@
-﻿using Autofac;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using ServiceBase.Notification.Sms;
-using ServiceBase.Notification.Twilio;
-using System;
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace IdentityBase.Public
 {
+    using System;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
+    using ServiceBase.Notification.Sms;
+
     public static class StartupSmsSender
     {
-        public static void ValidateSmsServices(this IContainer container, ILogger logger)
+        public static void ValidateSmsServices(
+            this IServiceCollection services,
+            ILogger logger)
         {
-            if (!container.IsRegistered<ISmsService>()) { throw new Exception("ISmsService not registered."); }
-        }
-    }
-
-    public class TwillioModule : Autofac.Module
-    {
-        /// <summary>
-        /// Loads dependencies 
-        /// </summary>
-        /// <param name="builder">The builder through which components can be registered.</param>
-        protected override void Load(ContainerBuilder builder)
-        {
-            builder.RegisterType<DefaultSmsService>().As<ISmsService>();
-            builder.RegisterInstance(Current.Configuration.GetSection("Sms").Get<DefaultSmsServiceOptions>());
-            builder.RegisterType<TwillioSmsSender>().As<ISmsSender>();
-            builder.RegisterInstance(Current.Configuration.GetSection("Sms:Twillio").Get<TwillioOptions>());
-        }
-    }
-
-    public class DebugSmsModule : Autofac.Module
-    {
-        /// <summary>
-        /// Loads dependencies 
-        /// </summary>
-        /// <param name="builder">The builder through which components can be registered.</param>
-        protected override void Load(ContainerBuilder builder)
-        {
-            builder.RegisterType<DebugSmsService>().As<ISmsService>();
+            if (!services.IsAdded<ISmsService>())
+            {
+                throw new Exception("ISmsService not registered.");
+            }
         }
     }
 }

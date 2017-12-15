@@ -1,11 +1,24 @@
-﻿using Microsoft.AspNetCore.Http.Authentication;
-using System.Text.Encodings.Web;
+// Copyright (c) Russlan Akiev. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE in the project root for license information.
 
 namespace Microsoft.AspNetCore.Mvc
 {
+    using System.Text.Encodings.Web;
+    using Microsoft.AspNetCore.Authentication;
+
     public static class ControllerExtensions
     {
-        public static IActionResult ChallengeExternalLogin(this Controller controller, string provider, string returnUrl)
+        /// <summary>
+        /// Creates an challenge action result for external login
+        /// </summary>
+        /// <param name="provider">
+        /// Name of external provider, eg. facebook, google, hotmail
+        /// </param>
+        /// <returns>Instance of <see cref="ChallengeResult"/>.</returns>
+        public static IActionResult ChallengeExternalLogin(
+            this Controller controller,
+            string provider,
+            string returnUrl)
         {
             if (returnUrl != null)
             {
@@ -15,7 +28,7 @@ namespace Microsoft.AspNetCore.Mvc
             returnUrl = "external-callback?returnUrl=" + returnUrl;
 
             // Start challenge and roundtrip the return URL
-            var props = new AuthenticationProperties
+            AuthenticationProperties props = new AuthenticationProperties
             {
                 RedirectUri = returnUrl,
                 Items = { { "scheme", provider } }
@@ -24,11 +37,4 @@ namespace Microsoft.AspNetCore.Mvc
             return new ChallengeResult(provider, props);
         }
     }
-
-    /// <summary>
-    /// A base class for an api controller.
-    /// </summary>
-    public abstract class ApiController : ControllerBase
-    {
-    }    
 }
