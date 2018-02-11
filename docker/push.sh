@@ -1,2 +1,3 @@
 # push docker image to repository
-docker push docker.econduct.de/identitybase/identitybase
+
+docker push identitybasenet/identitybase

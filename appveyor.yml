@@ -1,6 +1,6 @@
-version: 1.0.{build}
+version: 1.1.{build}
 skip_tags: true
-image: Visual Studio 2017
+image: Visual Studio 2017 Preview
 configuration: Release
 platform: Any CPU
 environment:
@@ -25,8 +25,6 @@ build_script:
 
 after_build:
   - nuget pack ./src/IdentityBase/IdentityBase.nuspec -OutputDirectory ./artifacts/packages -version %APPVEYOR_BUILD_VERSION%
-  - nuget pack ./src/IdentityBase.Public/IdentityBase.Public.nuspec -OutputDirectory ./artifacts/packages -version %APPVEYOR_BUILD_VERSION%
-  - nuget pack ./src/IdentityBase.Public.EntityFramework/IdentityBase.Public.EntityFramework.nuspec -OutputDirectory ./artifacts/packages -version %APPVEYOR_BUILD_VERSION%
   
 test_script:
   - bash coveralls.sh
