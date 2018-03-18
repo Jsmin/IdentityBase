@@ -385,13 +385,22 @@ namespace IdentityBase.Actions.Register
                 }
                 else if (this._applicationOptions.CancelAfterAccountConfirmation)
                 {
-                    return this.View("Complete");
+                    return this.RedirectToAction(
+                        "complete",
+                        new { ReturnUrl = returnUrl }
+                    );
                 }
 
                 return this.RedirectToLogin(returnUrl);
             }
         }
 
+        [HttpGet("register/complete", Name = "RegisterComplete")]
+        public async Task<IActionResult> Complete()
+        {
+            return this.View("Complete");
+        }
+        
         // Currently is only used for invitations 
         [HttpPost("register/confirm", Name = "RegisterConfirm")]
         [ValidateAntiForgeryToken]
@@ -443,7 +452,15 @@ namespace IdentityBase.Actions.Register
             await this._userAccountService
                 .UpdateUserAccountAsync(result.UserAccount);
 
-            if (result.UserAccount.CreationKind == CreationKind.Invitation)
+            if (this._applicationOptions.CancelAfterAccountConfirmation)
+            {
+                // return this.View("Complete");
+                return this.RedirectToAction(
+                        "complete",
+                        new { ReturnUrl = returnUrl }
+                    );
+            }
+            else if (result.UserAccount.CreationKind == CreationKind.Invitation)
             {
                 return this.RedirectToReturnUrl(
                         returnUrl, this._interaction);
@@ -458,11 +475,7 @@ namespace IdentityBase.Actions.Register
                     return this.RedirectToReturnUrl(
                         returnUrl, this._interaction);
                 }
-                else if (this._applicationOptions.CancelAfterAccountConfirmation)
-                {
-                    return this.View("Complete");
-                }
-                
+
                 return this.RedirectToLogin(returnUrl);
             }
         }
